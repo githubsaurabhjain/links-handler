@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-
+import routes from "./src/route";
 import path from "path";
 import fs from "fs";
 // import {
@@ -14,7 +14,8 @@ if (fs.existsSync("./.env")) {
 
 const PORT = process.env.PORT || 3000;
 const app = express();
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "link-app/www")));
+
 app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
@@ -25,7 +26,7 @@ app.use(cors());
 // app.get("/server-time", (req, res) => {
 //   res.json({ startTime: serverStartTime.format("DD-MMM-YYYY HH:mm:ss") });
 // });
-// app.use(routes);
+app.use(routes);
 app.listen(PORT, () => {
   return console.log(`Server is listening at http://localhost:${PORT} 🥳`);
 });
