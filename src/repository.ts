@@ -34,6 +34,14 @@ export class Repository {
     });
   };
 
+  public static findRecordThroughLinkId = async (linkId: string) => {
+    return Repository.findRecord({
+      columnName: "linkID",
+      value: linkId,
+      model: "link_master",
+    });
+  };
+
   public static async fetchLastInsertedMaxId() {
     let query = `SELECT MAX(CAST(SUBSTRING(userID, 4) AS UNSIGNED)) AS maxId
 FROM user_master;`;
@@ -70,5 +78,24 @@ FROM user_master;`;
       generateCreateRecordParams(payload);
     const query = `INSERT INTO link_access_log(${columns}) VALUES(${placeholders});`;
     return await pool.query(query, values);
+  };
+
+  public static getReports = async () => {
+    const query = `SELECT 
+    lm.linkID, 
+    lm.linkName, 
+    lm.expiryTime, 
+    lm.tags, 
+    lm.linkUrl,
+    COUNT(ll.linkID) AS clicked
+FROM 
+    link_db.link_master lm
+LEFT JOIN 
+    link_db.link_access_log ll 
+    ON lm.linkID = ll.linkID
+GROUP BY 
+    lm.linkID, lm.linkName, lm.expiryTime, lm.tags, lm.linkUrl;`;
+    const [records] = await pool.query(query);
+    return records as QueryResult;
   };
 }

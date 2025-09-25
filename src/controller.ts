@@ -22,6 +22,11 @@ export const urlList = async (req: Request, res: Response) => {
 
 export const addUrl = async (req: Request, res: Response) => {
   try {
+    const { linkID } = req.body;
+    const record = await Repository.findRecordThroughLinkId(linkID);
+    if (record.length) {
+      throw new Error("Link Id already exist");
+    }
     await Repository.addNewURL(req.body);
     res.json({
       status: true,
@@ -47,8 +52,8 @@ export const getAppUrl = async (req: Request, res: Response) => {
 
     const result = deviceDetector.parse(userAgent);
     const ip =
-      req.headers["x-forwarded-for"]?.toString().split(",")[0] || // if behind proxy
-      req.socket?.remoteAddress || // fallback
+      req.headers["x-forwarded-for"]?.toString().split(",")[0] ||
+      req.socket?.remoteAddress ||
       "";
     const data = {
       linkID,
@@ -119,6 +124,24 @@ export const addUser = async (req: Request, res: Response) => {
       status: true,
       message: "User added successfully",
       output: {},
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
+      error: error instanceof Error && error.message,
+    });
+  }
+};
+
+export const getReports = async (req: Request, res: Response) => {
+  try {
+    const record = await Repository.getReports();
+    res.json({
+      status: true,
+      message: "Reports fetched",
+      output: record,
     });
   } catch (error) {
     res.json({
