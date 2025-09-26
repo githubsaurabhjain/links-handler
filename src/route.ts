@@ -4,13 +4,18 @@ import {
   addUser,
   getAppUrl,
   getReports,
+  shareUrl,
+  updateUrl,
   urlList,
   userList,
 } from "./controller";
 
 const router = Router();
 router.use("/urls", urlList);
+router.use("/url/share", shareUrl);
 router.use("/url/add", addUrl);
+router.use("/url/update", updateUrl);
+
 router.use("/appUrl", getAppUrl);
 
 router.use("/users", userList);

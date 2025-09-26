@@ -1,6 +1,10 @@
 import { QueryResult } from "mysql2";
 import pool from "../config/pool";
-import { generateCreateRecordParams } from "./util";
+import {
+  generateCreateRecordParams,
+  generateParams,
+  generateUpdateRecordParams,
+} from "./util";
 
 export class Repository {
   constructor() {}
@@ -11,9 +15,9 @@ export class Repository {
     return records as QueryResult;
   };
 
-  public static getUrls = async () => {
-    const query = `SELECT sno ,linkID, linkName, linkUrl, tags, expiryTime FROM link_master;`;
-    const [records] = await pool.query(query);
+  public static getUrls = async (userId: string='LN-1001') => {
+    const query = `SELECT la.accessGranted, lm.linkID, lm.sno, lm.linkName, lm.linkUrl, lm.tags, lm.expiryTime, lm.isActive  FROM link_db.link_master lm left join link_db.user_link_access la ON  la.linkID = lm.linkID WHERE la.userID = ?;`;
+    const [records] = await pool.query(query, [userId]);
     return records as QueryResult;
   };
 
@@ -73,11 +77,26 @@ FROM user_master;`;
     return await pool.query(query, values);
   };
 
+  public static updateURL = async (payload: any) => {
+    const { setClause, values } = generateUpdateRecordParams(payload);
+    const query = `UPDATE link_master SET
+                   ${setClause}
+                   WHERE linkID = ?;`;
+
+    const [results] = await pool.query(query, [...values, payload.linkID]);
+    return results as QueryResult;
+  };
+
   public static addAccessLog = async (payload: any) => {
     const { columns, placeholders, values } =
       generateCreateRecordParams(payload);
     const query = `INSERT INTO link_access_log(${columns}) VALUES(${placeholders});`;
     return await pool.query(query, values);
+  };
+
+  public static insertLinkAccessRecords = async (values: any) => {
+    const query = `INSERT INTO user_link_access (userID, linkID, accessGranted) VALUES ?;`;
+    return await pool.query(query, [values]);
   };
 
   public static getReports = async () => {

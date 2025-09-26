@@ -28,9 +28,66 @@ export const addUrl = async (req: Request, res: Response) => {
       throw new Error("Link Id already exist");
     }
     await Repository.addNewURL(req.body);
+    await Repository.insertLinkAccessRecords([["LN-1001", linkID, "Owner"]]);
+
     res.json({
       status: true,
       message: "Url added successfully",
+      output: {},
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
+      error: error instanceof Error && error.message,
+    });
+  }
+};
+
+export const updateUrl = async (req: Request, res: Response) => {
+  try {
+    await Repository.updateURL({ ...req.body });
+    res.json({
+      status: true,
+      message: "Url updated successfully",
+      output: {},
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
+      error: error instanceof Error && error.message,
+    });
+  }
+};
+
+export const shareUrl = async (req: Request, res: Response) => {
+  try {
+    const { linkID, users, role: accessGranted, newUser = null } = req.body;
+    let newUserId = null;
+    if (newUser) {
+      newUserId = await createNewUser({
+        ssoEmail: newUser,
+        role: "User",
+      });
+    }
+    let records: any[] = [];
+    for (let i of users) {
+      const temp = [i, linkID, accessGranted];
+      records = [...records, temp];
+    }
+
+    if (newUserId) {
+      records.push([newUserId, linkID, accessGranted]);
+    }
+
+    await Repository.insertLinkAccessRecords(records);
+
+    res.json({
+      status: true,
+      message: "Url shared successfully",
       output: {},
     });
   } catch (error) {
@@ -103,23 +160,8 @@ export const userList = async (req: Request, res: Response) => {
 export const addUser = async (req: Request, res: Response) => {
   try {
     const { ssoEmail, ...rest } = req.body;
+    await createNewUser(req.body);
 
-    const userRecord = await Repository.findUserByEmail(ssoEmail);
-
-    if (userRecord.length) {
-      throw new Error("User Already Exist");
-    }
-
-    let userID;
-    const lastInsertedRecord =
-      (await Repository.fetchLastInsertedMaxId()) as any;
-    let maxInsertedId = lastInsertedRecord[0].max_lp_id;
-    if (!maxInsertedId) {
-      maxInsertedId = 1000;
-    }
-    userID = `LN-${maxInsertedId + 1}`;
-
-    await Repository.addNewUser({ ...req.body, userID, fullName: "" });
     res.json({
       status: true,
       message: "User added successfully",
@@ -133,6 +175,26 @@ export const addUser = async (req: Request, res: Response) => {
       error: error instanceof Error && error.message,
     });
   }
+};
+
+const createNewUser = async (payload: any) => {
+  const { ssoEmail } = payload;
+  const userRecord = await Repository.findUserByEmail(ssoEmail);
+
+  if (userRecord.length) {
+    throw new Error("User Already Exist");
+  }
+
+  let userID;
+  const lastInsertedRecord = (await Repository.fetchLastInsertedMaxId()) as any;
+  let maxInsertedId = lastInsertedRecord[0].maxId;
+  if (!maxInsertedId) {
+    maxInsertedId = 1000;
+  }
+  userID = `LN-${maxInsertedId + 1}`;
+
+  await Repository.addNewUser({ ...payload, userID, fullName: "" });
+  return userID;
 };
 
 export const getReports = async (req: Request, res: Response) => {
