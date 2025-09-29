@@ -1,6 +1,38 @@
 import { Request, Response } from "express";
 import { Repository } from "./repository";
 import DeviceDetector from "device-detector-js";
+// import { generateAccessToken } from "./util";
+
+// export const verifySsoLogin = async (req: Request, res: Response) => {
+
+//     const { requestId } = req.body;
+
+//     const ssoDetails = await getRequestData(requestId);
+
+//     const { email, ...rest } = ssoDetails[0].ssoResponse;
+
+//     const userData = await Repository.findUserByEmail(email);
+
+//     if (!userData.length) {
+//       throw new Error("User Not Found");
+//     }
+//     const { userID, ssoEmail: userEmail } = userData[0];
+//     const token = generateAccessToken({
+//       userID,
+//       email: userEmail,
+//       time: new Date().getTime(),
+//     });
+//     await this.authRepo.updateJwtToken({
+//       token,
+//       userId: id,
+//     });
+//     return {
+//       data: {
+//         details: { ...rest, ...userData[0], token },
+//       },
+//     };
+
+// };
 
 export const urlList = async (req: Request, res: Response) => {
   try {
@@ -28,7 +60,7 @@ export const addUrl = async (req: Request, res: Response) => {
       throw new Error("Link Id already exist");
     }
     await Repository.addNewURL(req.body);
-    await Repository.insertLinkAccessRecords([["LN-1001", linkID, "Owner"]]);
+    await Repository.insertLinkAccessRecords([["LN-1001", linkID, "Editor"]]);
 
     res.json({
       status: true,
@@ -65,23 +97,33 @@ export const updateUrl = async (req: Request, res: Response) => {
 
 export const shareUrl = async (req: Request, res: Response) => {
   try {
-    const { linkID, users, role: accessGranted, newUser = null } = req.body;
-    let newUserId = null;
-    if (newUser) {
-      newUserId = await createNewUser({
-        ssoEmail: newUser,
-        role: "User",
-      });
-    }
-    let records: any[] = [];
-    for (let i of users) {
-      const temp = [i, linkID, accessGranted];
-      records = [...records, temp];
+    const { linkID, users, role: accessGranted } = req.body;
+    let newUserIds = [];
+    const existingUsers = users.filter((item: string) =>
+      item.startsWith("LN-")
+    );
+    const newUsers = users.filter((item: string) =>
+      item.includes("@heromotocorp.com")
+    );
+    if (newUsers.length) {
+      for (let email of newUsers) {
+        const id = await createNewUser(
+          {
+            ssoEmail: email,
+            role: "User",
+          },
+          true
+        );
+        if (id) newUserIds.push(id);
+      }
     }
 
-    if (newUserId) {
-      records.push([newUserId, linkID, accessGranted]);
-    }
+    const allUserIds = [...existingUsers, ...newUserIds];
+    const records: [string, string, string][] = allUserIds.map((userId) => [
+      userId,
+      linkID,
+      accessGranted,
+    ]);
 
     await Repository.insertLinkAccessRecords(records);
 
@@ -177,12 +219,16 @@ export const addUser = async (req: Request, res: Response) => {
   }
 };
 
-const createNewUser = async (payload: any) => {
+const createNewUser = async (payload: any, sharedUser = false) => {
   const { ssoEmail } = payload;
   const userRecord = await Repository.findUserByEmail(ssoEmail);
 
-  if (userRecord.length) {
+  if (userRecord.length && !sharedUser) {
     throw new Error("User Already Exist");
+  }
+
+  if (userRecord.length && sharedUser) {
+    return false;
   }
 
   let userID;

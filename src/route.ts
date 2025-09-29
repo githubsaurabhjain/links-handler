@@ -11,6 +11,7 @@ import {
 } from "./controller";
 
 const router = Router();
+// router.use("/account/verifySsoLogin", verifySsoLogin);
 router.use("/urls", urlList);
 router.use("/url/share", shareUrl);
 router.use("/url/add", addUrl);
