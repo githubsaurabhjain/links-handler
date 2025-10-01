@@ -22,7 +22,7 @@ export function verifySessionToken(
   res: Response,
   next: NextFunction
 ) {
-  const token = req?.headers?.["token"] as string;
+  const token = req?.headers?.["tokenkey"] as string;
 
   try {
     const result = jwt.verify(token, process.env.JWT_SECRET_KEY!);

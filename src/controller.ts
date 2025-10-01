@@ -1,38 +1,164 @@
 import { Request, Response } from "express";
 import { Repository } from "./repository";
 import DeviceDetector from "device-detector-js";
-// import { generateAccessToken } from "./util";
+import { generateAccessToken } from "./util";
 
-// export const verifySsoLogin = async (req: Request, res: Response) => {
+export const generateSSORequest = async (req: Request, res: Response) => {
+  try {
+    const { appRedirectUri, appScope } = req.body;
+    const reqObj = {
+      appRedirectUri,
+      appScope,
+      appId: "global-portal-link",
+    };
 
-//     const { requestId } = req.body;
+    const response = await fetch(
+      `${process.env.GB_API_URL}/auth/generateSSORequest`,
+      {
+        method: "POST",
+        body: JSON.stringify(reqObj),
+        headers: {
+          "Content-Type": "application/json",
+          tokenKey: process.env.GB_TOKEN_KEY!,
+          devKey: process.env.GB_DEV_KEY!,
+        },
+      }
+    );
 
-//     const ssoDetails = await getRequestData(requestId);
+    if (!response.ok) {
+      throw new Error(
+        "Error occurred while processing request, please try again"
+      );
+    }
+    const data = await response.json();
 
-//     const { email, ...rest } = ssoDetails[0].ssoResponse;
+    res.status(200).json(data);
+  } catch (err) {
+    throw Error("Error occurred while processing request, please try again");
+  }
+};
 
-//     const userData = await Repository.findUserByEmail(email);
+export const verifyAuthToken = async (req: Request, res: Response) => {
+  try {
+    const { requestID, token } = req.body;
+    const reqObj = {
+      requestID,
+      token,
+    };
+    const response = await fetch(
+      `${process.env.GB_API_URL}/auth/verifyAuthToken`,
+      {
+        method: "POST",
+        body: JSON.stringify(reqObj),
+        headers: {
+          "Content-Type": "application/json",
+          tokenKey: process.env.GB_TOKEN_KEY!,
+          devKey: process.env.GB_DEV_KEY!,
+        },
+      }
+    );
 
-//     if (!userData.length) {
-//       throw new Error("User Not Found");
-//     }
-//     const { userID, ssoEmail: userEmail } = userData[0];
-//     const token = generateAccessToken({
-//       userID,
-//       email: userEmail,
-//       time: new Date().getTime(),
-//     });
-//     await this.authRepo.updateJwtToken({
-//       token,
-//       userId: id,
-//     });
-//     return {
-//       data: {
-//         details: { ...rest, ...userData[0], token },
-//       },
-//     };
+    if (!response.ok) {
+      throw new Error(`Unable to Authenticate User`);
+    }
+    const data = await response.json();
 
-// };
+    const { email, picture, name } = data?.output?.ssoResponse;
+
+    const userRecord = await Repository.findUserByEmail(email);
+
+    if (
+      !userRecord.length ||
+      (userRecord.length && userRecord[0].status === "Inactive")
+    ) {
+      throw Error(
+        "You don't have access to the system right now, pleases contact admin"
+      );
+    }
+    const { userID, ssoEmail, avatar, fullName, role } = userRecord[0];
+    if (!fullName.length || !avatar) {
+      await Repository.updateUser({ userID, avatar: picture, fullName: name });
+    }
+
+    const authToken = generateAccessToken({
+      userID,
+      email: ssoEmail,
+      role,
+      time: new Date().getTime(),
+    });
+
+    await Repository.addAuthLogs({
+      token: authToken,
+      userID,
+      ssoEmail,
+      actionType: "Login",
+    });
+
+    res.status(200).json({
+      output: {
+        ...userRecord[0],
+        fullName: name,
+        avatar: picture,
+        token: authToken,
+      },
+      status: true,
+      message: "User verified successfully",
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) ||
+        "Unable to Authenticate User",
+      error: "Unable to Authenticate User",
+    });
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const { userID, email } = req.body;
+    await Repository.updateLoginToken({ userID, token: null });
+    await Repository.addAuthLogs({
+      token: null,
+      userID,
+      ssoEmail: email,
+      actionType: "Logout",
+    });
+
+    res
+      .status(200)
+      .json({ message: "Logout successfully", output: {}, status: true });
+  } catch (error) {
+    console.log(error);
+    res.status(200).json({
+      message: "Logout failed , try again later",
+      error: "Something went wrong, please try again later",
+      status: false,
+    });
+  }
+};
+
+export const verifySession = async (req: Request, res: Response) => {
+  try {
+    const { userID, email } = req.body;
+    const userData = await Repository.findUserByEmail(email);
+    console.log(userData);
+    res.status(200).json({
+      message: "user details fetched",
+      output: userData[0],
+      status: true,
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) ||
+        "Unable to Authenticate User",
+      error: "Unable to Authenticate User",
+    });
+  }
+};
 
 export const urlList = async (req: Request, res: Response) => {
   try {
@@ -219,6 +345,30 @@ export const addUser = async (req: Request, res: Response) => {
   }
 };
 
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const { userID, role, status } = req.body;
+    await Repository.updateUser({
+      userID,
+      role,
+      status: status ? "Active" : "Inactive",
+    });
+
+    res.json({
+      status: true,
+      message: "User updated successfully",
+      output: {},
+    });
+  } catch (error) {
+    res.json({
+      status: false,
+      message:
+        (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
+      error: error instanceof Error && error.message,
+    });
+  }
+};
+
 const createNewUser = async (payload: any, sharedUser = false) => {
   const { ssoEmail } = payload;
   const userRecord = await Repository.findUserByEmail(ssoEmail);
@@ -252,11 +402,14 @@ export const getReports = async (req: Request, res: Response) => {
       output: record,
     });
   } catch (error) {
-    res.json({
-      status: false,
-      message:
-        (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
-      error: error instanceof Error && error.message,
-    });
+    console.log(error);
+    res
+      .json({
+        status: false,
+        message:
+          (error instanceof Error && error.message) || "SOMETHING_WENT_WRONG",
+        error: error instanceof Error && error.message,
+      })
+      .status(500);
   }
 };

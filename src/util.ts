@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
 
 export const generateCreateRecordParams = (data: any) => {
   const columns = Object.keys(data).join(", ");
@@ -31,9 +31,9 @@ export const getPlaceHolder = (list: any): string => {
   return list.map(() => "?").join(", ");
 };
 
-// export const generateAccessToken = (data: any) => {
-//   return jwt.sign(data, process.env.JWT_SECRET_KEY!, { expiresIn: "25h" });
-// };
+export const generateAccessToken = (data: any) => {
+  return jwt.sign(data, process.env.JWT_SECRET_KEY!, { expiresIn: "25h" });
+};
 
 export const generateRandomString = () =>
   Math.random().toString(36).slice(2).toUpperCase();
@@ -42,5 +42,3 @@ export const generateRandomNonRepeatingString = () =>
   `${Math.random()
     .toString(36)
     .slice(2)}${Date.now().toString()}`.toUpperCase();
-
-
