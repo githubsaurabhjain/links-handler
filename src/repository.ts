@@ -12,17 +12,46 @@ export class Repository {
   public static addAuthLogs = async (payload: any) => {
     const { columns, placeholders, values } =
       generateCreateRecordParams(payload);
-    const query = `INSERT INTO login_attempt_logs(${columns}) VALUES(${placeholders});`;
-    return await pool.query(query, values);
+
+    const { actionType, userID, ssoEmail, token } = payload;
+
+    // const query = `INSERT INTO login_attempt_logs(${columns}) VALUES(${placeholders});`;
+
+    const query = `INSERT INTO login_attempt_logs(userID, ssoEmail, actionType, token)
+VALUES (?,?,?,?)
+ON DUPLICATE KEY UPDATE
+    token = ?;`;
+
+    return await pool.query(query, [userID, ssoEmail, actionType, token]);
   };
 
   public static updateLoginToken = async (payload: any) => {
-    const { setClause, values } = generateUpdateRecordParams(payload);
-    const query = `UPDATE login_attempt_logs SET
-                   ${setClause}
-                   WHERE userID = ?;`;
+    // const { setClause, values } = generateUpdateRecordParams(payload);
+    // const query = `UPDATE login_attempt_logs SET
+    //                ${setClause}
+    //                WHERE userID = ?;`;
 
-    return await pool.query(query, [...values, payload.userID]);
+    // return await pool.query(query, [...values, payload.userID]);
+
+    const { actionType, userID, ssoEmail, token } = payload;
+
+    // const query = `INSERT INTO login_attempt_logs(${columns}) VALUES(${placeholders});`;
+
+    const query = `INSERT INTO login_attempt_logs(userID, ssoEmail, actionType, token)
+VALUES (?,?,?,?)
+ON DUPLICATE KEY UPDATE
+    token = ?,
+    actionType = ?;
+    `;
+
+    return await pool.query(query, [
+      userID,
+      ssoEmail,
+      actionType,
+      token,
+      token,
+      actionType,
+    ]);
   };
 
   public static getAllUsers = async () => {

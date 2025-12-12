@@ -87,7 +87,7 @@ export const verifyAuthToken = async (req: Request, res: Response) => {
       time: new Date().getTime(),
     });
 
-    await Repository.addAuthLogs({
+    await Repository.updateLoginToken({
       token: authToken,
       userID,
       ssoEmail,
@@ -118,13 +118,7 @@ export const verifyAuthToken = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   try {
     const { userID, email } = req.body;
-    await Repository.updateLoginToken({ userID, token: null });
-    await Repository.addAuthLogs({
-      token: null,
-      userID,
-      ssoEmail: email,
-      actionType: "Logout",
-    });
+    await Repository.updateLoginToken({ userID, token: null, ssoEmail: email, actionType: "Logout" });
 
     res
       .status(200)
